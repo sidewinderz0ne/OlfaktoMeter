@@ -1,31 +1,31 @@
-const long alarmTime = 10000; //Detik
+ const long alarmTime = 60000; //Mili detik
 int buzzerDuration = 1000; //Mili Detik
-int buzzerSound = 500; //KHz
+int buzzerSound = 4000; //KHz
 long alarm;
 int mill;
 int onTime;
 int trigTime;
 
-int buzzer = 35;
+int buzzer = 33;
 
 bool setWaktu = false;
-int jam = 16;
-int menit = 42;
-int detik = 0;
-int tanggal = 5;
+int jam = 14;                                                                                                                                                                                                                                                                                    
+int menit = 31;
+int detik = 30;
+int tanggal = 19;
 int bulan = 6;
 int tahun = 2020;
 
 #include "U8glib.h"
-U8GLIB_ST7920_128X64_1X u8g(8, 9, 10, 11, 4, 5, 6, 7, 1, 2, 3);
+U8GLIB_ST7920_128X64_1X u8g(5, 6, 8, 9, 10, 11, 12, 13, 4, 2, 3);// 8Bit Com: D0..D7: 5,6,8,9,10,11,12,13 Enable=4, RS=2,R/W=3
 #include <DS3231.h>
 DS3231  rtc(SDA, SCL);
-int pinCS = 53;
+int pinCS  = 53;
 int chk;
 
 #include <DHT.h>;
-DHT dht(31, DHT22);
-DHT dht2(33, DHT22);
+DHT dht(30, DHT22);
+DHT dht2(31, DHT22);
 float hum;  
 float hum2;
 float temp;
@@ -37,7 +37,7 @@ char t [5];
 char t2 [5];
 char str1 [20];
 
-#include <SD.h>
+#include <SD.h> 
 #include <SPI.h>
 File myFile;
 
@@ -46,7 +46,12 @@ void draw(void) {
   u8g.setFont(u8g_font_unifont);
   //u8g.setFont(u8g_font_osb21);
   u8g.drawStr( 0, 60, "www.SRS-SSMS.com");
-  u8g.drawStr( 32, 15, rtc.getTimeStr());
+  char* waktu = "RTC ERROR";
+  if (rtc.getTimeStr() !=  '\0'){
+    waktu = rtc.getTimeStr();
+  }
+  u8g.drawStr( 32, 15, waktu);
+  //buzz();
   u8g.drawStr( 0, 30, "IN :");
   u8g.drawStr( 0, 45, "OUT:");
   u8g.drawStr( 66, 30, "%");
@@ -59,6 +64,12 @@ void draw(void) {
   u8g.drawStr( 84, 45, (t2) );
 }
 
+void buzz(void){
+ tone(buzzer, buzzerSound);
+ delay(buzzerDuration);
+ noTone(buzzer);
+}
+
 void drawSdFailed(void) {
   // graphic commands to redraw the complete screen should be placed here  
   u8g.setFont(u8g_font_unifont);
@@ -69,9 +80,11 @@ void drawSdFailed(void) {
 }
 
 void setup(void) {
+  //Serial.begin(115200);
   alarm = alarmTime;
   pinMode(buzzer, OUTPUT);
   pinMode(pinCS, OUTPUT);
+  
   rtc.begin();
   if (setWaktu){
   rtc.setDate(tanggal, bulan, tahun); //hapus
@@ -110,6 +123,24 @@ void setup(void) {
   } while( u8g.nextPage() );
     return;
   }
+
+  myFile = SD.open("hasil.txt", FILE_WRITE);
+      if (myFile) {    
+        myFile.print("Tanggal, Jam, Humidity IN, Humdity OUT, Temperature IN, Temperature OUT");
+        myFile.println();
+        myFile.close(); // close the file
+        Serial.println("sd berhasil");
+      }
+      // if the file didn't open, print an error:
+      else {
+        Serial.println("sd gagal");
+        u8g.firstPage();  
+        do {
+          drawSdFailed();
+        } while( u8g.nextPage() );
+      }
+
+  logging();
 }
 
 int timeToInt(void){
@@ -122,36 +153,20 @@ int timeToInt(void){
   return convert;
 }
 
-void loop(void) {
-
- 
-  hum = dht.readHumidity();
-  hum2 = dht2.readHumidity();
-  temp = dht.readTemperature();
-  temp2 = dht2.readTemperature();
-
-  dtostrf(hum, 3, 1, h);
-  dtostrf(hum2, 3, 1, h2);
-  dtostrf(temp, 3, 1, t);
-  dtostrf(temp2, 3, 1, t2);
-  
-  // picture loop
-  u8g.firstPage();  
-  do {
-    draw();
-  } while( u8g.nextPage() );
-  char st1 = rtc.getTimeStr();
-  char str1[8];
-  strcpy(str1, st1);
-  trigTime = (rtc.getTime().hour + rtc.getTime().min + rtc.getTime().sec);
-  unsigned long currentMillis = millis();
-  if (currentMillis >= alarm){
+void logging(void){
+  Serial.println("loop if jalan");
       alarm = alarm + alarmTime;
       myFile = SD.open("hasil.txt", FILE_WRITE);
       if (myFile) {    
-        myFile.print(rtc.getDateStr());
+        String waktu = "RTC ERROR";
+        String tanggal = "RTC ERROR";
+        if (rtc.getTimeStr() !=  '\0'){
+          waktu = rtc.getTimeStr();
+          tanggal = rtc.getDateStr();
+        } 
+        myFile.print(tanggal);
         myFile.print(", "); 
-        myFile.print(rtc.getTimeStr());
+        myFile.print(waktu);
         myFile.print(", ");    
         myFile.print(h);
         myFile.print(", ");
@@ -163,20 +178,45 @@ void loop(void) {
         myFile.print("");
         myFile.println();
         myFile.close(); // close the file
+        Serial.println("sd tulis berhasil");
       }
       // if the file didn't open, print an error:
       else {
+        Serial.println("sd tulis gagal");
         u8g.firstPage();  
         do {
           drawSdFailed();
         } while( u8g.nextPage() );
       }
-      tone(buzzer, buzzerSound);
-      delay(buzzerDuration);
-      noTone(buzzer);
-  }
+    buzz();
+}
 
-  
+void loop(void) {
+  Serial.println("loop started");
+  hum = dht.readHumidity();
+  hum2 = dht2.readHumidity();
+  temp = dht.readTemperature();
+  temp2 = dht2.readTemperature();
+
+  dtostrf(hum, 3, 1, h);
+  dtostrf(hum2, 3, 1, h2);
+  dtostrf(temp, 3, 1, t);
+  dtostrf(temp2, 3, 1, t2);
+
+  // picture loop
+  u8g.firstPage();  
+  do {
+    draw();
+  } while( u8g.nextPage() );
+  Serial.println(millis());
+  char st1 = rtc.getTimeStr();
+  char str1[8];
+  strcpy(str1, st1);
+  trigTime = (rtc.getTime().hour + rtc.getTime().min + rtc.getTime().sec);
+  unsigned long currentMillis = millis();
+  if (currentMillis >= alarm){
+    logging();
+  }
   // rebuild the picture after some delay
-  delay(50);
+  delay(1);
 }
